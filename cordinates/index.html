@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Text Extraction</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body>
+    <h1>Image Text Extraction</h1>
+    <div class="container">
+        <div class="upload-container">
+            <input type="file" accept="image/*" id="fileInput">
+            <label for="fileInput">Select Image</label>
+            <div style="text-align: center;">
+                <img id="preview" src="" alt="" class="hide-blue-border">
+                <div class="loading-overlay" id="uploadLoading">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </div>
+        <div class="extract-container">
+            <button id="start">Extract Text and Coordinates</button>
+            <div class="loading-overlay" id="progress" style="display: none;"></div>
+            <textarea id="extractedText" rows="10" cols="50"></textarea>
+            <table id="extractedCoordinates" style="display: none;">
+                <tbody id="extractedCoordinatesContent"></tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+        const fileSelector = document.getElementById('fileInput');
+        const startButton = document.getElementById('start');
+        const img = document.getElementById('preview');
+        const progress = document.getElementById('progress');
+        const textarea = document.getElementById('extractedText');
+        const coordinatesTable = document.getElementById('extractedCoordinates');
+        const coordinatesContent = document.getElementById('extractedCoordinatesContent');
+
+        fileSelector.onchange = () => {
+            const file = fileSelector.files[0];
+            const imgUrl = window.URL.createObjectURL(file);
+            img.src = imgUrl;
+        }
+
+        startButton.onclick = () => {
+            textarea.innerHTML = '';
+            progress.innerHTML = 'Recognizing text...';
+            coordinatesTable.style.display = 'none'; // Hide coordinates table
+
+            const formData = new FormData();
+            formData.append('file', fileSelector.files[0]);
+            formData.append('apikey', 'K84186434788957'); // Replace 'YOUR_API_KEY' with your actual API key
+            formData.append('isOverlayRequired', 'true'); // Add isOverlayRequired: true
+
+            fetch('https://api.ocr.space/parse/image', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.ParsedResults && data.ParsedResults.length > 0 && data.ParsedResults[0].ParsedText) {
+                    textarea.innerHTML = data.ParsedResults[0].ParsedText;
+                    progress.innerHTML = 'Text recognition completed';
+
+                    // Extracting coordinates
+                    const boundingBoxes = [];
+                    data.ParsedResults[0].TextOverlay.Lines.forEach(line => {
+                        line.Words.forEach(word => {
+                            if (word.WordText) {
+                                const boundingBox = {
+                                    word: word.WordText,
+                                    boundingBox: [word.Left, word.Top, word.Left + word.Width, word.Top, word.Left + word.Width, word.Top + word.Height, word.Left, word.Top + word.Height]
+                                };
+                                boundingBoxes.push(boundingBox);
+                            }
+                        });
+                    });
+
+                    // Display coordinates in a table
+                    coordinatesContent.innerHTML = ''; // Clear previous content
+                    boundingBoxes.forEach(box => {
+                        const row = document.createElement('tr');
+                        const cell = document.createElement('td');
+                        cell.textContent = `Word: ${box.word}, Coordinates: (${box.boundingBox.join(',')})`;
+                        row.appendChild(cell);
+                        coordinatesContent.appendChild(row);
+                    });
+                    coordinatesTable.style.display = 'block'; // Display coordinates table
+                } else {
+                    progress.innerHTML = 'Error: No text recognized';
+                }
+            })
+            .catch(error => {
+                progress.innerHTML = 'Error: ' + error.message;
+            });
+        }
+    </script>
+</body>
+</html>
